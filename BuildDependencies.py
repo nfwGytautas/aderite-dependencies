@@ -6,9 +6,14 @@ import os
 import glob
 import sys
 
+# Config
+makeCommand = "mingw32-make"
+cCompiler = "gcc"
+
 # Shared constants
-libDir = "build/lib/x64/"
-includeDir = "build/include/"
+outDir = "build/dependencies/"
+libDir = "{}lib/".format(outDir)
+includeDir = "{}include/".format(outDir)
 sourcesDir = "sources/"
 
 # Generate the output folders
@@ -16,114 +21,90 @@ print("Generating output directories")
 Path(libDir).mkdir(parents=True, exist_ok=True)
 Path(includeDir).mkdir(parents=True, exist_ok=True)
 
+# TODO: Check that library directory exists
+# TODO: Error check
 
 # Class to represent a base aderite dependency
 class Dependency:
-    name = ""
-    buildType = ""
-    includeFiles = []
-    libFiles = []
-
     def __init__(self, name: str, buildType : str):
         self.name = name
         self.buildType = buildType
-        pass
+        self.includeFiles = []
+        self.libFiles = []
 
-    def build(self):
+
+        self.libDir = "{}{}".format(libDir, self.name)
+        self.buildPath = "{}{}/build/".format(sourcesDir, self.name)
+        self.includePath = "{}include/{}".format(outDir, self.name)
+
+
+    # Prepare directories for building
+    def prepare_directories(self):
+        if Path(self.buildPath).exists():
+            shutil.rmtree(self.buildPath, ignore_errors=False, onerror=None)
+
+        Path(self.buildPath).mkdir(parents=True, exist_ok=True)
+        Path(self.includePath).mkdir(parents=True, exist_ok=True)
+
+
+    # Generate files for building
+    def generate(self):
         if self.buildType == "CMake":
-            self.__cmake_build()
+            print("Generating cmake for {}".format(self.name))
+
+            cmake_options = ["cmake"]
+            cmake_options.append("-DCMAKE_C_COMPILER={}".format(cCompiler))
+            cmake_options.append("-DCMAKE_MAKE_PROGRAM={}".format(makeCommand))
+            cmake_options.append("-G Unix Makefiles")
+            cmake_options.append("..") # In build directory generate from root
+
+            cmake = subprocess.Popen(cmake_options, cwd=self.buildPath)
+            cmake.wait()
             return
 
         sys.exit("[0] Unspecified build type for {}".format(self.name))
 
-    def __cmake_build(self):
-        # TODO: Check that library directory exists
-        # TODO: Error check
 
-        print("CMake build for {}".format(self.name))
+    # Build the dependency
+    def build(self):
+        if self.buildType == "CMake":
+            print("Compiling {}".format(self.name))
+            make = subprocess.Popen([makeCommand, "-j8"], cwd=self.buildPath)
+            make.wait()
+            return
 
-        lib_dir = "{}{}".format(libDir, self.name)
-        build_path = "{}{}/build/".format(sourcesDir, self.name)
+        sys.exit("[0] Unspecified build type for {}".format(self.name))
 
-        print("Build path:", build_path)
-        Path(build_path).mkdir(parents=True, exist_ok=True)
 
-        print("Generating cmake")
-        cmake_options = ""
-        # if "CmakeOptions" in lib_entry:
-        #     cmake_options = lib_entry["CmakeOptions"]
-
-        cmake = subprocess.Popen(["cmake", cmake_options, ".."], cwd=build_path)
-        cmake.wait()
-
-        print("Compiling")
-        cmake = subprocess.Popen(["make", "-j8"], cwd=build_path)
-        cmake.wait()
-
-        # Copy over necessary files
-        Path(include_path).mkdir(parents=True, exist_ok=True)
-
+    # Copy dependency outputs
+    def copy_outputs(self):
+        print("Copying outputs for {}", self.name)
         for lib in self.libFiles:
-            shutil.copy("{}{}".format(build_path, lib), libDir)
+            shutil.copy("{}{}".format(self.buildPath, lib), libDir)
 
         for include_file in self.includeFiles:
             if "*" in include_file:
-                for file in glob.glob("{}/{}".format(lib_dir, include_file)):
+                for file in glob.glob("{}{}/{}".format(sourcesDir, self.name, include_file)):
                     if Path(file).is_dir():
-                        shutil.copytree(file, include_path + Path(file).stem, dirs_exist_ok=True)
+                        shutil.copytree(file, self.includePath + Path(file).stem, dirs_exist_ok=True)
                     else:
-                        shutil.copy(file, include_path)
+                        shutil.copy(file, self.includePath )
             else:
-                shutil.copy("{}/{}".format(lib_dir, include_file), include_path)
+                shutil.copy("{}/{}".format(self.libDir, include_file), self.includePath)
+
 
 # TODO: Check that we are in dependencies folder
 # TODO: Check that cmake is installed
 
 # Describe dependencies
 glfw = Dependency("glfw", "CMake");
-glfw.includeFiles.append("include/GLFW/*")
+glfw.includeFiles.append("include/GLFW/**")
 glfw.libFiles.append("src/libglfw3.a")
 
 dependencies = [glfw]
 for i, dependency in enumerate(dependencies):
     print("Building {}/{}".format(i + 1, len(dependencies)))
-    dependency.build()
-
-# # Library list
-# # ( name, [includes], override for the library file )
-# libraries = [
-#     {
-#         "Name": "pugixml",
-#         "IncludeFiles": ["src/pugixml.hpp", "src/pugiconfig.hpp"],
-#         "LibFiles": ["libpugixml.a"],
-#     },
-#     {
-#         "Name": "spdlog",
-#         "IncludeFiles": ["include/spdlog/**"],
-#         "LibFiles": ["libspdlog.a"],
-#     },
-#     {
-#         "Name": "glfw",
-#         "IncludeFiles": ["include/GLFW/**"],
-#         "LibFiles": ["src/libglfw3.a"],
-#     },
-#     {
-#         "Name": "vex-glad",
-#         "IncludeFiles": ["glad/include/**"],
-#         "LibFiles": ["libglad.a"],
-#         "IncludeOutputOverride": ""
-#     },
-#     {
-#         "Name": "efsw",
-#         "IncludeFiles": ["include/**"],
-#         "LibFiles": ["libefsw.a"],
-#         "IncludeOutputOverride": "",
-#         "CmakeOptions": "-DBUILD_SHARED_LIBS=OFF"
-#     },
-#     {
-#         "Name": "glm",
-#         "IncludeFiles": ["glm/**"],
-#         "LibFiles": ["glm/libglm_static.a"],
-#         "IncludeOutputOverride": "glm/",
-#     },
-# ]
+    # dependency.prepare_directories()
+    # dependency.generate()
+    # dependency.build()
+    dependency.copy_outputs()
