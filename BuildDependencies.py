@@ -31,11 +31,16 @@ class Dependency:
         self.buildType = buildType
         self.includeFiles = []
         self.libFiles = []
-
+        self.cmakeOptions = []
 
         self.libDir = "{}{}".format(libDir, self.name)
         self.buildPath = "{}{}/build/".format(sourcesDir, self.name)
         self.includePath = "{}include/{}".format(outDir, self.name)
+
+
+    # Override the default output directory(dependency name) for dependency
+    def override_include_directory(self, override) :
+        self.includePath = "{}include/{}".format(outDir, override)
 
 
     # Prepare directories for building
@@ -56,6 +61,7 @@ class Dependency:
             cmake_options.append("-DCMAKE_C_COMPILER={}".format(cCompiler))
             cmake_options.append("-DCMAKE_MAKE_PROGRAM={}".format(makeCommand))
             cmake_options.append("-G Unix Makefiles")
+            cmake_options = cmake_options + self.cmakeOptions
             cmake_options.append("..") # In build directory generate from root
 
             cmake = subprocess.Popen(cmake_options, cwd=self.buildPath)
@@ -68,7 +74,7 @@ class Dependency:
     # Build the dependency
     def build(self):
         if self.buildType == "CMake":
-            print("Compiling {}".format(self.name))
+            print("Compiling", self.name)
             make = subprocess.Popen([makeCommand, "-j8"], cwd=self.buildPath)
             make.wait()
             return
@@ -78,7 +84,7 @@ class Dependency:
 
     # Copy dependency outputs
     def copy_outputs(self):
-        print("Copying outputs for {}", self.name)
+        print("Copying outputs for", self.name)
         for lib in self.libFiles:
             shutil.copy("{}{}".format(self.buildPath, lib), libDir)
 
@@ -95,16 +101,28 @@ class Dependency:
 
 # TODO: Check that we are in dependencies folder
 # TODO: Check that cmake is installed
+# TODO: Check outputs for errors
 
 # Describe dependencies
-glfw = Dependency("glfw", "CMake");
+glfw = Dependency("glfw", "CMake")
 glfw.includeFiles.append("include/GLFW/**")
 glfw.libFiles.append("src/libglfw3.a")
 
-dependencies = [glfw]
+glad = Dependency("glad", "CMake")
+glad.includeFiles.append("debug/include/**")
+glad.override_include_directory("")
+glad.libFiles.append("libglad_debug.a")
+
+spdlog = Dependency("spdlog", "CMake")
+spdlog.includeFiles.append("include/**")
+spdlog.override_include_directory("")
+spdlog.cmakeOptions.append("-DSPDLOG_BUILD_EXAMPLE=OFF")
+spdlog.libFiles.append("libspdlog.a")
+
+dependencies = [glfw, glad, spdlog]
 for i, dependency in enumerate(dependencies):
     print("Building {}/{}".format(i + 1, len(dependencies)))
-    # dependency.prepare_directories()
-    # dependency.generate()
-    # dependency.build()
+    dependency.prepare_directories()
+    dependency.generate()
+    dependency.build()
     dependency.copy_outputs()

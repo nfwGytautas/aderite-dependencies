@@ -1,3 +1,9 @@
 [submodule "sources/glfw"]
 	path = sources/glfw
 	url = https://github.com/glfw/glfw
+[submodule "sources/glad"]
+	path = sources/glad
+	url = https://github.com/nfwGytautas/aderite-glad
+[submodule "sources/spdlog"]
+	path = sources/spdlog
+	url = https://github.com/gabime/spdlog.git
