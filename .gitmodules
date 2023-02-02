@@ -7,3 +7,6 @@
 [submodule "sources/spdlog"]
 	path = sources/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "sources/stb"]
+	path = sources/stb
+	url = https://github.com/nothings/stb.git

@@ -38,6 +38,16 @@ class Dependency:
         self.includePath = "{}include/{}".format(outDir, self.name)
 
 
+    # Wrapper for functions to get the dependency and build it
+    def get(self):
+        self.prepare_directories()
+
+        if self.buildType != "Header":
+            self.generate()
+            self.build()
+
+        self.copy_outputs()
+
     # Override the default output directory(dependency name) for dependency
     def override_include_directory(self, override) :
         self.includePath = "{}include/{}".format(outDir, override)
@@ -89,14 +99,15 @@ class Dependency:
             shutil.copy("{}{}".format(self.buildPath, lib), libDir)
 
         for include_file in self.includeFiles:
+            sourcesFolder = "{}{}/".format(sourcesDir, self.name)
             if "*" in include_file:
-                for file in glob.glob("{}{}/{}".format(sourcesDir, self.name, include_file)):
+                for file in glob.glob("{}{}".format(sourcesFolder, include_file)):
                     if Path(file).is_dir():
                         shutil.copytree(file, self.includePath + Path(file).stem, dirs_exist_ok=True)
                     else:
                         shutil.copy(file, self.includePath )
             else:
-                shutil.copy("{}/{}".format(self.libDir, include_file), self.includePath)
+                shutil.copy("{}{}".format(sourcesFolder, include_file), "{}/{}".format(self.includePath, include_file))
 
 
 # TODO: Check that we are in dependencies folder
@@ -119,10 +130,10 @@ spdlog.override_include_directory("")
 spdlog.cmakeOptions.append("-DSPDLOG_BUILD_EXAMPLE=OFF")
 spdlog.libFiles.append("libspdlog.a")
 
-dependencies = [glfw, glad, spdlog]
+stb = Dependency("stb", "Header")
+stb.includeFiles.append("stb_image.h")
+
+dependencies = [glfw, glad, spdlog, stb]
 for i, dependency in enumerate(dependencies):
     print("Building {}/{}".format(i + 1, len(dependencies)))
-    dependency.prepare_directories()
-    dependency.generate()
-    dependency.build()
-    dependency.copy_outputs()
+    dependency.get()
